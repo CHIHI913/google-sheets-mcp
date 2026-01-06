@@ -21,6 +21,7 @@ export function createServer(): McpServer {
   const server = new McpServer({
     name: "google-sheets-mcp",
     version: "1.0.0",
+    description: "Googleスプレッドシートの読み書き・シート管理を行う",
   });
 
   registerTools(server);
