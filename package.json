@@ -1,7 +1,7 @@
 {
-  "name": "google-sheets-mcp",
+  "name": "google-spreadsheet-mcp",
   "version": "1.0.0",
-  "description": "Internal Google Sheets MCP Server",
+  "description": "Google Spreadsheet MCP Server",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {

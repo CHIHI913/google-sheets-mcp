@@ -1,4 +1,4 @@
-# Google Sheets MCP Server
+# Google Spreadsheet MCP Server
 
 Google スプレッドシートを操作するための MCP (Model Context Protocol) サーバーです。
 Claude Code などの AI エージェントからスプレッドシートの読み書きが可能になります。
@@ -53,9 +53,9 @@ pnpm run build
 ```json
 {
   "mcpServers": {
-    "google-sheets": {
+    "google-spreadsheet": {
       "command": "node",
-      "args": ["/path/to/google-sheets-mcp/dist/index.js"],
+      "args": ["/path/to/google-spreadsheet-mcp/dist/index.js"],
       "env": {
         "GOOGLE_APPLICATION_CREDENTIALS": "/path/to/service-account-key.json"
       }
