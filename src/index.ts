@@ -2,192 +2,111 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { google, sheets_v4 } from "googleapis";
-import { z } from "zod";
+import {
+  getSheetMetadata,
+  getSheetMetadataSchema,
+  readValues,
+  readValuesSchema,
+  appendValues,
+  appendValuesSchema,
+  updateValues,
+  updateValuesSchema,
+  addSheet,
+  addSheetSchema,
+  deleteSheet,
+  deleteSheetSchema,
+  renameSheet,
+  renameSheetSchema,
+} from "./tools/index.js";
 
-// Initialize Google Sheets API client
-async function getSheetsClient(): Promise<sheets_v4.Sheets> {
-  const auth = new google.auth.GoogleAuth({
-    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-  });
-  return google.sheets({ version: "v4", auth });
-}
-
-// Tool implementations
-async function getSheetMetadata(spreadsheetId: string) {
-  const sheets = await getSheetsClient();
-  const response = await sheets.spreadsheets.get({
-    spreadsheetId,
-    fields: "properties.title,sheets.properties.title,sheets.properties.sheetId",
-  });
-
-  return {
-    title: response.data.properties?.title,
-    sheets: response.data.sheets?.map((sheet) => ({
-      sheetId: sheet.properties?.sheetId,
-      title: sheet.properties?.title,
-    })),
-  };
-}
-
-async function readValues(spreadsheetId: string, range: string) {
-  const sheets = await getSheetsClient();
-  const response = await sheets.spreadsheets.values.get({
-    spreadsheetId,
-    range,
-    valueRenderOption: "FORMATTED_VALUE",
-  });
-
-  return {
-    range: response.data.range,
-    values: response.data.values || [],
-  };
-}
-
-async function appendValues(spreadsheetId: string, range: string, values: string[][]) {
-  const sheets = await getSheetsClient();
-  const response = await sheets.spreadsheets.values.append({
-    spreadsheetId,
-    range,
-    valueInputOption: "USER_ENTERED",
-    requestBody: {
-      values,
-    },
-  });
-
-  return {
-    updatedRange: response.data.updates?.updatedRange,
-    updatedRows: response.data.updates?.updatedRows,
-    updatedColumns: response.data.updates?.updatedColumns,
-    updatedCells: response.data.updates?.updatedCells,
-  };
-}
-
-async function updateValues(spreadsheetId: string, range: string, values: string[][]) {
-  const sheets = await getSheetsClient();
-  const response = await sheets.spreadsheets.values.update({
-    spreadsheetId,
-    range,
-    valueInputOption: "USER_ENTERED",
-    requestBody: {
-      values,
-    },
-  });
-
-  return {
-    updatedRange: response.data.updatedRange,
-    updatedRows: response.data.updatedRows,
-    updatedColumns: response.data.updatedColumns,
-    updatedCells: response.data.updatedCells,
-  };
-}
-
-// MCP Server setup
 const server = new McpServer({
   name: "google-sheets-mcp",
   version: "1.0.0",
 });
 
-// Register tools
+// Helper for error handling
+async function handleToolCall<T>(
+  fn: () => Promise<T>
+): Promise<{ content: { type: "text"; text: string }[]; isError?: boolean }> {
+  try {
+    const result = await fn();
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    return {
+      content: [{ type: "text", text: `Error: ${errorMessage}` }],
+      isError: true,
+    };
+  }
+}
+
+// ツール登録
 server.registerTool(
   "get_sheet_metadata",
   {
-    description: "Get the structure of a spreadsheet including title and list of sheet tabs",
-    inputSchema: {
-      spreadsheetId: z.string().describe("The ID of the spreadsheet"),
-    },
+    description: "スプレッドシートのタイトルとシート（タブ）一覧を取得",
+    inputSchema: getSheetMetadataSchema,
   },
-  async ({ spreadsheetId }) => {
-    try {
-      const result = await getSheetMetadata(spreadsheetId);
-      return {
-        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-      };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      return {
-        content: [{ type: "text", text: `Error: ${errorMessage}` }],
-        isError: true,
-      };
-    }
-  }
+  async ({ spreadsheetId }) => handleToolCall(() => getSheetMetadata(spreadsheetId))
 );
 
 server.registerTool(
   "read_values",
   {
-    description: "Read values from a specified range in a spreadsheet. Returns formatted values (calculation results, not formulas).",
-    inputSchema: {
-      spreadsheetId: z.string().describe("The ID of the spreadsheet"),
-      range: z.string().describe("The A1 notation range to read (e.g., 'Sheet1!A1:C10')"),
-    },
+    description: "指定範囲のデータを読み込み（計算結果を取得、数式は取得しない）",
+    inputSchema: readValuesSchema,
   },
-  async ({ spreadsheetId, range }) => {
-    try {
-      const result = await readValues(spreadsheetId, range);
-      return {
-        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-      };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      return {
-        content: [{ type: "text", text: `Error: ${errorMessage}` }],
-        isError: true,
-      };
-    }
-  }
+  async ({ spreadsheetId, range }) => handleToolCall(() => readValues(spreadsheetId, range))
 );
 
 server.registerTool(
   "append_values",
   {
-    description: "Append rows of data to the end of a specified range in a spreadsheet",
-    inputSchema: {
-      spreadsheetId: z.string().describe("The ID of the spreadsheet"),
-      range: z.string().describe("The A1 notation range where data will be appended (e.g., 'Sheet1!A:C')"),
-      values: z.array(z.array(z.string())).describe("2D array of values to append"),
-    },
+    description: "指定範囲の末尾にデータを追記",
+    inputSchema: appendValuesSchema,
   },
-  async ({ spreadsheetId, range, values }) => {
-    try {
-      const result = await appendValues(spreadsheetId, range, values);
-      return {
-        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-      };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      return {
-        content: [{ type: "text", text: `Error: ${errorMessage}` }],
-        isError: true,
-      };
-    }
-  }
+  async ({ spreadsheetId, range, values }) =>
+    handleToolCall(() => appendValues(spreadsheetId, range, values))
 );
 
 server.registerTool(
   "update_values",
   {
-    description: "Update (overwrite) values in a specified range in a spreadsheet",
-    inputSchema: {
-      spreadsheetId: z.string().describe("The ID of the spreadsheet"),
-      range: z.string().describe("The A1 notation range to update (e.g., 'Sheet1!A1:C10')"),
-      values: z.array(z.array(z.string())).describe("2D array of values to write"),
-    },
+    description: "指定範囲のデータを上書き更新",
+    inputSchema: updateValuesSchema,
   },
-  async ({ spreadsheetId, range, values }) => {
-    try {
-      const result = await updateValues(spreadsheetId, range, values);
-      return {
-        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-      };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      return {
-        content: [{ type: "text", text: `Error: ${errorMessage}` }],
-        isError: true,
-      };
-    }
-  }
+  async ({ spreadsheetId, range, values }) =>
+    handleToolCall(() => updateValues(spreadsheetId, range, values))
+);
+
+server.registerTool(
+  "add_sheet",
+  {
+    description: "新しいシート（タブ）を追加",
+    inputSchema: addSheetSchema,
+  },
+  async ({ spreadsheetId, title }) => handleToolCall(() => addSheet(spreadsheetId, title))
+);
+
+server.registerTool(
+  "delete_sheet",
+  {
+    description: "シート（タブ）を削除",
+    inputSchema: deleteSheetSchema,
+  },
+  async ({ spreadsheetId, sheetId }) => handleToolCall(() => deleteSheet(spreadsheetId, sheetId))
+);
+
+server.registerTool(
+  "rename_sheet",
+  {
+    description: "シート（タブ）の名前を変更",
+    inputSchema: renameSheetSchema,
+  },
+  async ({ spreadsheetId, sheetId, newTitle }) =>
+    handleToolCall(() => renameSheet(spreadsheetId, sheetId, newTitle))
 );
 
 // Start the server
