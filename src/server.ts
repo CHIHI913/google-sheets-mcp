@@ -15,6 +15,14 @@ import {
   deleteSheetSchema,
   renameSheet,
   renameSheetSchema,
+  deleteRows,
+  deleteRowsSchema,
+  deleteColumns,
+  deleteColumnsSchema,
+  insertRows,
+  insertRowsSchema,
+  insertColumns,
+  insertColumnsSchema,
 } from "./tools/index.js";
 
 export function createServer(): McpServer {
@@ -94,5 +102,45 @@ function registerTools(server: McpServer): void {
     },
     async ({ spreadsheetId, sheetId, newTitle }) =>
       handleToolCall(() => renameSheet(spreadsheetId, sheetId, newTitle))
+  );
+
+  server.registerTool(
+    "delete_rows",
+    {
+      description: "指定範囲の行を削除",
+      inputSchema: deleteRowsSchema,
+    },
+    async ({ spreadsheetId, sheetId, startIndex, endIndex }) =>
+      handleToolCall(() => deleteRows(spreadsheetId, sheetId, startIndex, endIndex))
+  );
+
+  server.registerTool(
+    "delete_columns",
+    {
+      description: "指定範囲の列を削除",
+      inputSchema: deleteColumnsSchema,
+    },
+    async ({ spreadsheetId, sheetId, startIndex, endIndex }) =>
+      handleToolCall(() => deleteColumns(spreadsheetId, sheetId, startIndex, endIndex))
+  );
+
+  server.registerTool(
+    "insert_rows",
+    {
+      description: "指定位置に空の行を挿入",
+      inputSchema: insertRowsSchema,
+    },
+    async ({ spreadsheetId, sheetId, startIndex, numRows }) =>
+      handleToolCall(() => insertRows(spreadsheetId, sheetId, startIndex, numRows))
+  );
+
+  server.registerTool(
+    "insert_columns",
+    {
+      description: "指定位置に空の列を挿入",
+      inputSchema: insertColumnsSchema,
+    },
+    async ({ spreadsheetId, sheetId, startIndex, numColumns }) =>
+      handleToolCall(() => insertColumns(spreadsheetId, sheetId, startIndex, numColumns))
   );
 }
